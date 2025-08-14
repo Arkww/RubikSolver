@@ -1,15 +1,17 @@
+from RL_env import train_phase, progressive_training
 from cube import Cube
 
 def main():
-    cube = Cube()
-    print(cube.display_cube())
-    cube.move('U')
-    print(cube.display_cube())
-    cube.move('R')
-    print(cube.display_cube())
-    cube.scramble()
-    print(cube.display_cube())
-
+    #cube = Cube()
+    #cube2 = Cube(type='2x2')
+    #print(cube.display_cube())
+    #print(cube2.display_cube())
+    #cube2.move('U')
+    #cube2.move('R')
+    #cube2.move('F')
+    #print(cube2.display_cube())
+    #main_training()
+    progressive_training()
 
 if __name__ == "__main__":
     main()
