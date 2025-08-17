@@ -3,10 +3,11 @@ from dqn_agent import DQNAgent
 from cube import Cube
 from RL_env import RubiksCubeEnv
 import numpy as np
+from collections import deque
 
 
 
-def complete_training(agent, env, type): 
+def complete_training(agent, env, type, show_episodes=0): 
         """Training an agent for a set number of episodes and scrambled moves"""
         
 
@@ -17,7 +18,7 @@ def complete_training(agent, env, type):
         start_time = time.time()
         
         for i in range(20,1,1):
-            state = env.reset()           # Start with solved cube
+            state = env.reset()            # Start with solved cube
             env.scramble(i) 
             state = env._get_observation() # Get scrambled state
             
@@ -51,22 +52,19 @@ def complete_training(agent, env, type):
             
                 episode_rewards.append(total_reward)
             
-                # Progress reporting
-                if (steps + 1) % 50 == 0:
-                    current_success_rate = successes / (steps + 1)
-                    recent_success_rate = recent_successes / 50
-                    avg_reward = np.mean(episode_rewards[-50:])
-                    elapsed_time = time.time() - start_time
+            current_success_rate = successes / (steps + 1)
+            recent_success_rate = recent_successes / 50
+            avg_reward = np.mean(episode_rewards[-50:])
+            elapsed_time = time.time() - start_time
+            print(f"Training finished for {i} move scrambles"
+                    f"Success {current_success_rate:.1%} "
+                    f"(recent {recent_success_rate:.1%}), "
+                    f"Reward {avg_reward:6.1f}, "
+                    f"ε={agent.epsilon:.3f}, "
+                    f"Time {elapsed_time/60:.1f}min")
                     
-                    print(f"   Episode {steps+1:3d}/{steps}: "
-                        f"Success {current_success_rate:.1%} "
-                        f"(recent {recent_success_rate:.1%}), "
-                        f"Reward {avg_reward:6.1f}, "
-                        f"ε={agent.epsilon:.3f}, "
-                        f"Time {elapsed_time/60:.1f}min")
-                    
-                print("Attained 0.9% accuracy consistenly")
-                    
+                                       
+
         
         total_time = time.time() - start_time
         

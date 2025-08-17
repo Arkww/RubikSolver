@@ -12,7 +12,7 @@ class CubeDQN(nn.Module):
     This IS the neural network that learns to solve the cube
     """
     
-    def __init__(self, type='3x3', hidden_sizes=[512, 256, 128], output_size=None):
+    def __init__(self, type='3x3', hidden_sizes=[512, 256, 128], output_size=12):
         """
         Args:
             type (str): '3x3' or '2x2'
@@ -24,12 +24,8 @@ class CubeDQN(nn.Module):
         # Set input size and output size based on cube type
         if type == '3x3':
             input_size = 54  # 6 faces * 9 stickers
-            if output_size is None:
-                output_size = 12  # 6 faces * 2 directions
         elif type == '2x2':
             input_size = 24  # 6 faces * 4 stickers
-            if output_size is None:
-                output_size = 12 
         else:
             raise ValueError("type must be '3x3' or '2x2'")
 

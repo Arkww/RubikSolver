@@ -26,13 +26,13 @@ class DQNAgent:
         type=None
     ):
         
+        self.action_size = 12  # 6 faces * 2 directions
+
         # Set cube-specific parameters based on type
         if type == "3x3":
             self.state_size = 54  # 6 faces * 9 stickers
-            self.action_size = 12  # 6 faces * 2 directions
         elif type == "2x2":
             self.state_size = 24  # 6 faces * 4 stickers
-            self.action_size = 12   
         else:
             raise ValueError("type must be '3x3' or '2x2'")
                 
@@ -47,7 +47,8 @@ class DQNAgent:
         self.type = type
         
         # Set device (GPU if available, otherwise CPU)
-        self.device = device if device else ('cuda' if torch.cuda.is_available() else 'cpu')
+    
+        self.device = device if device else ('cuda' if torch.cuda.is_available() else 'npu')
         print(f"   Using device: {self.device}")
         
         # CREATE THE NEURAL NETWORKS
