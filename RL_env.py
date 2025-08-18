@@ -142,47 +142,107 @@ class RubiksCubeEnv(gym.Env):
             return np.array(observation, dtype=np.float32)
         
     def _calculate_reward(self) -> float:
-            """Reward function"""
+        """Reward function optimized for finding optimal (shortest) solutions"""
+        
+        if self.cube.is_solved():
+            # MASSIVE reward for solving, heavily weighted by efficiency
+            base_reward = 1000.0
             
-            if self.cube.is_solved():
-                # LARGE positive reward for solving
-                base_reward = 100.0
-                
-                # Bonus for solving efficiently
-                efficiency_bonus = max(0, 20 - self.moves_count)
-                
-                total_reward = base_reward + efficiency_bonus
-                
-                if self.debug:
-                    print(f"  SOLVED! Base: {base_reward}, Efficiency: {efficiency_bonus}, Total: {total_reward}")
-                    
-                return total_reward
+            # STRONG bonus for fewer moves (exponential scaling)
+            # For 2x2 cube, optimal solutions are typically 1-11 moves
+            optimal_moves = min(11, self.moves_count)  # Cap at 11 (God's number for 2x2)
+            
+            # Exponential efficiency bonus - rewards shorter solutions much more
+            efficiency_multiplier = (12 - optimal_moves) / 11.0  # Scale 0-1
+            efficiency_bonus = base_reward * efficiency_multiplier * efficiency_multiplier
+            
+            # Additional bonus for very short solutions
+            if self.moves_count <= 3:
+                short_solution_bonus = 500.0
+            elif self.moves_count <= 6:
+                short_solution_bonus = 200.0
+            elif self.moves_count <= 9:
+                short_solution_bonus = 50.0
             else:
-                # Small penalty for each move + partial progress reward
-                move_penalty = -0.1
-                progress_reward = self._calculate_progress_reward()
-                
-                total_reward = move_penalty + progress_reward
-                
-                # Prevent extremely negative rewards
-                total_reward = max(total_reward, -10.0)
-                
-                return total_reward
-        
+                short_solution_bonus = 0.0
+            
+            total_reward = base_reward + efficiency_bonus + short_solution_bonus
+            
+            if self.debug:
+                print(f"  SOLVED! Moves: {self.moves_count}")
+                print(f"    Base: {base_reward}")
+                print(f"    Efficiency: {efficiency_bonus:.1f}")
+                print(f"    Short bonus: {short_solution_bonus}")
+                print(f"    Total: {total_reward:.1f}")
+            
+            return total_reward
+        else:
+            # STRONG penalty for each move to discourage long solutions
+            move_penalty = -1.0  # Much stronger than before
+            
+            # Exponentially increasing penalty for very long attempts
+            if self.moves_count > 15:
+                extended_penalty = -((self.moves_count - 15) ** 2)
+            else:
+                extended_penalty = 0.0
+            
+            # Small progress reward (but much smaller than move penalty)
+            progress_reward = self._calculate_progress_reward() * 0.1  # Reduced impact
+            
+            total_reward = move_penalty + extended_penalty + progress_reward
+            
+            # Prevent extremely negative rewards that might break training
+            total_reward = max(total_reward, -50.0)
+            
+            return total_reward
+
     def _calculate_progress_reward(self) -> float:
-            """Calculate reward based on partial progress"""
-            progress = 0.0
-            
-            # Method 1: Count solved stickers in correct positions
-            solved_stickers = self._count_correct_stickers()
-            progress += solved_stickers * 0.1  # Small reward per correct sticker
-            
-            # Method 2: Count completely solved faces
-            solved_faces = self._count_solved_faces()
-            progress += solved_faces * 2.0  # Bigger reward per solved face
-            
-            return min(progress, 10.0)  # Cap the progress reward
+        """Calculate reward based on partial progress - reduced impact for optimal solutions"""
+        progress = 0.0
         
+        # Reward for correct stickers (but small)
+        solved_stickers = self._count_correct_stickers()
+        progress += solved_stickers * 0.05  # Reduced from 0.1
+        
+        # Bigger reward for solved faces (still helpful for learning)
+        solved_faces = self._count_solved_faces()
+        progress += solved_faces * 1.0  # Reduced from 2.0
+        
+        # Add reward for getting closer to solved state
+        # This helps guide the agent toward good positions
+        distance_reward = self._calculate_distance_reward()
+        progress += distance_reward
+        
+        return min(progress, 5.0)  # Reduced cap
+
+    def _calculate_distance_reward(self) -> float:
+        """Reward based on how 'close' the cube is to being solved"""
+        
+        # Method 1: Count how many pieces are in correct relative positions
+        correct_relationships = 0
+        total_relationships = 0
+        
+        # For 2x2, check if corner pieces have correct color relationships
+        # This is more sophisticated but helps guide toward solvable states
+        
+        # Simple version: reward having more uniform faces
+        uniformity_score = 0
+        for face_name, face_matrix in self.cube.faces.items():
+            colors_on_face = {}
+            for row in face_matrix:
+                for color in row:
+                    colors_on_face[color] = colors_on_face.get(color, 0) + 1
+            
+            # Reward faces that are more uniform (closer to solved)
+            max_color_count = max(colors_on_face.values())
+            total_stickers = len(face_matrix) * len(face_matrix[0])
+            face_uniformity = max_color_count / total_stickers
+            uniformity_score += face_uniformity
+        
+        # Normalize by number of faces
+        avg_uniformity = uniformity_score / len(self.cube.faces)
+        
+        return avg_uniformity * 2.0  # Scale the reward
 
         
     def _count_solved_faces(self) -> int:

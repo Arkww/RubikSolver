@@ -1,4 +1,4 @@
-from RL_env import train_phase, progressive_training
+from training import train_phase, progressive_training, complete_training
 from cube import Cube
 
 def main():

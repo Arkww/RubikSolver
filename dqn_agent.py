@@ -5,6 +5,9 @@ import torch.optim as optim
 import random
 from replay_buffer import ReplayBuffer
 from cube_dqn import CubeDQN
+import os
+from datetime import datetime
+import json
 
 class DQNAgent:
     """
@@ -157,33 +160,85 @@ class DQNAgent:
         """Copy weights from main network to target network"""
         self.target_network.load_state_dict(self.q_network.state_dict())
     
-    def save_model(self, filepath):
-        """Save the trained neural network"""
-        torch.save({
-            'q_network_state_dict': self.q_network.state_dict(),
-            'target_network_state_dict': self.target_network.state_dict(),
+    def save_model(self, filepath, metadata=None):
+        """Save the trained model and training metadata"""
+        
+        # Create directory if it doesn't exist
+        os.makedirs(os.path.dirname(filepath) if os.path.dirname(filepath) else '.', exist_ok=True)
+        
+        # Prepare save data
+        save_data = {
+            'model_state_dict': self.q_network.state_dict(),
+            'target_model_state_dict': self.q_target.state_dict() if hasattr(self, 'q_target') else None,
             'optimizer_state_dict': self.optimizer.state_dict(),
-            'epsilon': self.epsilon,
-            'training_step': self.training_step,
-            'losses': self.losses,
-            'episode_rewards': self.episode_rewards,
-            'type': self.type,
-            'state_size': self.state_size,
-            'action_size': self.action_size
-        }, filepath)
-        print(f"Neural network saved to {filepath}")
+            'hyperparameters': {
+                'state_size': self.state_size,
+                'action_size': self.action_size,
+                'learning_rate': self.learning_rate,
+                'gamma': self.gamma,
+                'epsilon': self.epsilon,
+                'epsilon_min': self.epsilon_min,
+                'epsilon_decay': self.epsilon_decay,
+                'batch_size': self.batch_size,
+                'buffer_size': self.buffer_size
+            },
+            'training_metadata': metadata or {},
+            'save_timestamp': datetime.now().isoformat(),
+            'model_version': '1.0'
+        }
+        
+        torch.save(save_data, filepath)
+        print(f"Model saved to {filepath}")
+        
+        # Also save a human-readable summary
+        summary_path = filepath.replace('.pth', '_summary.json')
+        summary = {
+            'save_timestamp': save_data['save_timestamp'],
+            'hyperparameters': save_data['hyperparameters'],
+            'training_metadata': save_data['training_metadata']
+        }
+        
+        with open(summary_path, 'w') as f:
+            json.dump(summary, f, indent=2)
+        
+        print(f"Model summary saved to {summary_path}")
     
-    def load_model(self, filepath):
-        """Load a trained neural network"""
-        checkpoint = torch.load(filepath, map_location=self.device)
-        self.q_network.load_state_dict(checkpoint['q_network_state_dict'])
-        self.target_network.load_state_dict(checkpoint['target_network_state_dict'])
-        self.optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
-        self.epsilon = checkpoint['epsilon']
-        self.training_step = checkpoint['training_step']
-        self.losses = checkpoint.get('losses', [])
-        self.episode_rewards = checkpoint.get('episode_rewards', [])
-        print(f"Neural network loaded from {filepath}")
+    def load_model(self, filepath, device='cpu'):
+        """Load a saved model"""
+        
+        if not os.path.exists(filepath):
+            raise FileNotFoundError(f"Model file not found: {filepath}")
+        
+        # Load the saved data
+        save_data = torch.load(filepath, map_location=device)
+        
+        # Restore hyperparameters
+        hyperparams = save_data['hyperparameters']
+        self.state_size = hyperparams['state_size']
+        self.action_size = hyperparams['action_size']
+        self.learning_rate = hyperparams['learning_rate']
+        self.gamma = hyperparams['gamma']
+        self.epsilon = hyperparams['epsilon']
+        self.epsilon_min = hyperparams['epsilon_min']
+        self.epsilon_decay = hyperparams['epsilon_decay']
+        self.batch_size = hyperparams['batch_size']
+        self.buffer_size = hyperparams['buffer_size']
+        
+        # Rebuild networks with correct architecture
+        self._build_model()
+        
+        # Load model weights
+        self.q_network.load_state_dict(save_data['model_state_dict'])
+        if save_data['target_model_state_dict'] and hasattr(self, 'q_target'):
+            self.q_target.load_state_dict(save_data['target_model_state_dict'])
+        
+        # Load optimizer state
+        self.optimizer.load_state_dict(save_data['optimizer_state_dict'])
+        
+        print(f"Model loaded from {filepath}")
+        print(f"Saved on: {save_data['save_timestamp']}")
+        
+        return save_data['training_metadata']
     
     def get_network_info(self):
         """Get information about the neural network"""
